@@ -2,3 +2,4 @@ exclude:
   - README.md
   - icon.svg
   - Makefile
+  - CNAME
