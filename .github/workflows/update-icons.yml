@@ -30,13 +30,21 @@ jobs:
 
       - name: Commit updated PNGs
         run: |
-          if [ -z "$(git status --porcelain -u -- icon-*.png)" ]; then
-            echo "No icon changes to commit"
+          shopt -s nullglob
+          files=(icon-*.png)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No icon PNG files found"
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add icon-*.png
+          git add "${files[@]}"
+          if git diff --cached --quiet -- "${files[@]}"; then
+            echo "No icon changes to commit"
+            exit 0
+          fi
+
           git commit -m "chore: regenerate icons from icon.svg"
+          git pull --rebase origin "${{ github.head_ref }}"
           git push origin HEAD:${{ github.head_ref }}
