@@ -47,17 +47,18 @@ jobs:
 
           git commit -m "chore: regenerate icons from icon.svg"
 
-          for attempt in 1 2 3; do
+          max_attempts=3
+          for ((attempt=1; attempt<=max_attempts; attempt++)); do
             if git pull --rebase --autostash origin "${{ github.event.pull_request.head.ref }}" && \
               git push origin HEAD:"${{ github.event.pull_request.head.ref }}"; then
               exit 0
             fi
 
-            if [ "$attempt" -lt 3 ]; then
+            if [ "$attempt" -lt "$max_attempts" ]; then
               echo "Push attempt $attempt failed, retrying..."
               sleep $((attempt * 2))
             fi
           done
 
-          echo "Failed to update PR branch after 3 attempts"
+          echo "Failed to update PR branch after $max_attempts attempts"
           exit 1
