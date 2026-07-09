@@ -25,43 +25,24 @@ jobs:
 
       - name: Detect icon.svg changes
         id: icon-change
-        env:
-          EVENT_ACTION: ${{ github.event.action }}
-          BEFORE_SHA: ${{ github.event.before }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-
-          if [ "$EVENT_ACTION" = "synchronize" ] && [ -n "${BEFORE_SHA:-}" ]; then
-            from_sha="$BEFORE_SHA"
-          elif [ "$EVENT_ACTION" = "synchronize" ] && git cat-file -e "$HEAD_SHA^" 2>/dev/null; then
-            from_sha="$(git rev-parse "$HEAD_SHA^")"
-          else
-            from_sha="$BASE_SHA"
-          fi
-          to_sha="$HEAD_SHA"
-
-          if git diff --name-only "$from_sha" "$to_sha" | grep -qx "icon.svg"; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "icon.svg changed between $from_sha and $to_sha"
-          else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "icon.svg unchanged between $from_sha and $to_sha"
-          fi
+        uses: tj-actions/changed-files@v46
+        with:
+          files: |
+            **/icon.svg
+          since_last_remote_commit: true
 
       - name: Install ImageMagick
-        if: steps.icon-change.outputs.changed == 'true'
+        if: steps.icon-change.outputs.any_changed == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y imagemagick
 
       - name: Regenerate icons
-        if: steps.icon-change.outputs.changed == 'true'
+        if: steps.icon-change.outputs.any_changed == 'true'
         run: make icons
 
       - name: Commit updated PNGs
-        if: steps.icon-change.outputs.changed == 'true'
+        if: steps.icon-change.outputs.any_changed == 'true'
         env:
           PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
