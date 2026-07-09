@@ -28,7 +28,7 @@ jobs:
         uses: tj-actions/changed-files@v46
         with:
           files: |
-            **/icon.svg
+            icon.svg
           since_last_remote_commit: true
 
       - name: Install ImageMagick
