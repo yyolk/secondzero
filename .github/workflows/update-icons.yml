@@ -2,8 +2,10 @@ name: Update icons
 
 on:
   pull_request:
-    paths:
-      - icon.svg
+    types:
+      - opened
+      - synchronize
+      - reopened
 
 permissions:
   contents: write
@@ -19,16 +21,28 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Detect icon.svg changes
+        id: icon-change
+        uses: tj-actions/changed-files@v46
+        with:
+          files: |
+            icon.svg
+          since_last_remote_commit: true
 
       - name: Install ImageMagick
+        if: steps.icon-change.outputs.any_changed == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y imagemagick
 
       - name: Regenerate icons
+        if: steps.icon-change.outputs.any_changed == 'true'
         run: make icons
 
       - name: Commit updated PNGs
+        if: steps.icon-change.outputs.any_changed == 'true'
         env:
           PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
