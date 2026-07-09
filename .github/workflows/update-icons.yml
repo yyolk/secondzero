@@ -29,6 +29,8 @@ jobs:
         run: make icons
 
       - name: Commit updated PNGs
+        env:
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           shopt -s nullglob
           files=(icon-*.png)
@@ -49,8 +51,8 @@ jobs:
 
           max_attempts=3
           for ((attempt=1; attempt<=max_attempts; attempt++)); do
-            if git pull --rebase --autostash origin "${{ github.event.pull_request.head.ref }}" && \
-              git push origin HEAD:"${{ github.event.pull_request.head.ref }}"; then
+            if git pull --rebase --autostash origin "$PR_HEAD_REF" && \
+              git push origin HEAD:"$PR_HEAD_REF"; then
               exit 0
             fi
 
