@@ -30,7 +30,7 @@ jobs:
 
       - name: Commit updated PNGs
         run: |
-          if [ -z "$(git status --porcelain -- icon-*.png)" ]; then
+          if [ -z "$(git status --porcelain -u -- icon-*.png)" ]; then
             echo "No icon changes to commit"
             exit 0
           fi
