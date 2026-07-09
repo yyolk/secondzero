@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#f5b301">
+<script>
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+</script>
+<title>Second Zero</title>
+<style>
+  :root{
+    --bg:#000;
+    --ink:#e9e9e9;
+    --dim:#6b6b6b;
+    --accent:#f5b301;
+    --bar-h:clamp(10px, 2.4vh, 22px);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; height:100%;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    overflow:hidden;
+    user-select:none; -webkit-user-select:none;
+    touch-action:none;
+  }
+  .app{
+    height:100dvh;
+    display:flex;
+    flex-direction:column;
+  }
+
+  /* ---- progress bars (two rectangles meeting in the middle) ---- */
+  .bars{
+    position:relative;
+    height:var(--bar-h);
+    overflow:hidden;
+    flex:0 0 auto;
+  }
+  .fill{
+    position:absolute;
+    top:0; bottom:0;
+    width:50%;
+    background:var(--accent);
+    transform:scaleX(0);
+    will-change:transform;
+  }
+  .fill.left{left:0;  transform-origin:left center;
+    border-radius:0 3px 3px 0;}
+  .fill.right{right:0; transform-origin:right center;
+    border-radius:3px 0 0 3px;}
+
+  /* ---- stage / clock ---- */
+  .stage{
+    flex:1 1 auto;
+    position:relative;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:0;
+  }
+  canvas{display:block;}
+
+  /* current time, subtle */
+  .readout{
+    position:absolute;
+    bottom:max(10px, env(safe-area-inset-bottom));
+    left:0; right:0;
+    text-align:center;
+    font-variant-numeric:tabular-nums;
+    font-size:clamp(13px,3.6vw,18px);
+    letter-spacing:.06em;
+    color:var(--dim);
+    pointer-events:none;
+  }
+
+  /* countdown overlay */
+  .overlay{
+    position:absolute;
+    inset:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:.2em;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .18s ease;
+  }
+  .overlay.active{opacity:1;}
+  .count{
+    font-size:clamp(64px, 30vmin, 240px);
+    font-weight:700;
+    line-height:1;
+    color:var(--accent);
+    font-variant-numeric:tabular-nums;
+    text-shadow:0 0 40px rgba(245,179,1,.25);
+  }
+  .count.now{
+    color:#fff;
+    text-shadow:0 0 60px rgba(255,255,255,.6);
+    font-size:clamp(64px, 26vmin, 220px);
+    letter-spacing:.01em;
+  }
+  .pulse{animation:pop .42s cubic-bezier(.2,.9,.3,1.2);}
+  @keyframes pop{0%{transform:scale(.86); opacity:.55;}100%{transform:scale(1); opacity:1;}}
+  .target{
+    font-size:clamp(13px,4vw,20px);
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--dim);
+    font-variant-numeric:tabular-nums;
+  }
+  .target b{color:var(--ink); font-weight:600;}
+
+  /* sound toggle */
+  .sound{
+    position:absolute;
+    top:max(10px, env(safe-area-inset-top));
+    right:max(12px, env(safe-area-inset-right));
+    background:transparent;
+    border:1px solid #2a2a2a;
+    color:var(--dim);
+    font:inherit;
+    font-size:13px;
+    letter-spacing:.08em;
+    padding:8px 12px;
+    border-radius:999px;
+    cursor:pointer;
+    display:flex; align-items:center; gap:7px;
+    transition:color .15s, border-color .15s;
+  }
+  .sound:hover{color:var(--ink); border-color:#444;}
+  .sound.on{color:var(--accent); border-color:rgba(245,179,1,.5);}
+  .sound .dot{width:7px; height:7px; border-radius:50%; background:currentColor; opacity:.5;}
+  .sound.on .dot{opacity:1;}
+
+  /* full-screen Now flash */
+  .flash{
+    position:fixed; inset:0;
+    background:#fff;
+    opacity:0;
+    pointer-events:none;
+  }
+  .flash.show{animation:flash 1.05s ease-out forwards;}
+  @keyframes flash{0%{opacity:.92;}100%{opacity:0;}}
+</style>
+</head>
+<body>
+  <div class="app">
+    <div class="bars">
+      <div class="fill left"  data-fill></div>
+      <div class="fill right" data-fill></div>
+    </div>
+
+    <div class="stage">
+      <canvas id="clock"></canvas>
+      <div class="overlay" id="overlay">
+        <div class="count" id="count">15</div>
+        <div class="target" id="target"></div>
+      </div>
+      <div class="readout" id="readout">--:--:--</div>
+      <button class="sound" id="soundBtn" aria-pressed="false">
+        <span class="dot"></span><span id="soundLabel">Sound off</span>
+      </button>
+    </div>
+
+    <div class="bars">
+      <div class="fill left"  data-fill></div>
+      <div class="fill right" data-fill></div>
+    </div>
+  </div>
+  <div class="flash" id="flash"></div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---- config ----
+  const LEAD = 15;          // seconds before the minute that the cue begins (45s mark)
+  const MODE = "analog";    // future iteration: "digital"
+
+  // ---- elements ----
+  const canvas   = document.getElementById("clock");
+  const ctx      = canvas.getContext("2d");
+  const fills    = Array.from(document.querySelectorAll("[data-fill]"));
+  const overlay  = document.getElementById("overlay");
+  const countEl  = document.getElementById("count");
+  const targetEl = document.getElementById("target");
+  const readout  = document.getElementById("readout");
+  const flash    = document.getElementById("flash");
+  const soundBtn = document.getElementById("soundBtn");
+  const soundLbl = document.getElementById("soundLabel");
+
+  let side = 0;
+
+  function resize(){
+    const stage = canvas.parentElement;
+    const size  = Math.min(stage.clientWidth, stage.clientHeight);
+    side = Math.max(120, Math.floor(size * 0.92));
+    const dpr = window.devicePixelRatio || 1;
+    canvas.style.width  = side + "px";
+    canvas.style.height = side + "px";
+    canvas.width  = Math.round(side * dpr);
+    canvas.height = Math.round(side * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener("resize", resize);
+  window.addEventListener("orientationchange", () => setTimeout(resize, 120));
+
+  // ---- analog clock rendering ----
+  function hand(c, ang, len, w, color, cap){
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = w;
+    ctx.lineCap = cap || "round";
+    ctx.beginPath();
+    ctx.moveTo(c, c);
+    ctx.lineTo(c + len * Math.sin(ang), c - len * Math.cos(ang));
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawAnalog(now, sFrac){
+    const c = side / 2;
+    const r = c - side * 0.05;
+    ctx.clearRect(0, 0, side, side);
+
+    // ticks
+    for (let i = 0; i < 12; i++){
+      const ang = i * Math.PI / 6;
+      const major = i % 3 === 0;
+      const len = major ? r * 0.11 : r * 0.05;
+      ctx.strokeStyle = major ? "#cfcfcf" : "#4a4a4a";
+      ctx.lineWidth = major ? Math.max(2, side * 0.008) : Math.max(1, side * 0.004);
+      ctx.lineCap = "round";
+      const x0 = c + (r) * Math.sin(ang),       y0 = c - (r) * Math.cos(ang);
+      const x1 = c + (r - len) * Math.sin(ang), y1 = c - (r - len) * Math.cos(ang);
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    }
+
+    const h = now.getHours(), m = now.getMinutes();
+    const hourAng = ((h % 12) + m / 60) * Math.PI / 6;
+    const minAng  = (m + sFrac / 60) * Math.PI / 30;
+    const secAng  = Math.floor(sFrac) * Math.PI / 30;   // discrete ticking
+
+    hand(c, hourAng, r * 0.50, side * 0.020, "#ececec");
+    hand(c, minAng,  r * 0.78, side * 0.013, "#ececec");
+    hand(c, secAng,  r * 0.86, side * 0.006, "#ff3333");   // red second hand
+
+    // center dot
+    ctx.fillStyle = "#ececec";
+    ctx.beginPath();
+    ctx.arc(c, c, side * 0.012, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function pad(n){ return n < 10 ? "0" + n : "" + n; }
+
+  // ---- audio (per-second rising ticks) ----
+  let actx = null, soundOn = false;
+
+  function ensureAudio(){
+    if (actx) return;
+    actx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+
+  soundBtn.addEventListener("click", () => {
+    ensureAudio();
+    if (actx.state === "suspended") actx.resume();
+    soundOn = !soundOn;
+    soundBtn.classList.toggle("on", soundOn);
+    soundBtn.setAttribute("aria-pressed", String(soundOn));
+    soundLbl.textContent = soundOn ? "Sound on" : "Sound off";
+  });
+
+  // one short pitched tick with a fast percussive envelope
+  function tick(freq, dur, vol){
+    if (!actx) return;
+    const t = actx.currentTime;
+    const o = actx.createOscillator();
+    const g = actx.createGain();
+    o.type = "triangle";
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(actx.destination);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+
+  // tick on each remaining second (15..1), pitch rising as zero approaches
+  function playTick(remaining){
+    const progress = (LEAD - remaining) / (LEAD - 1);  // 0 at first tick -> 1 at last
+    const freq = 440 * Math.pow(2, progress);          // 440Hz -> 880Hz
+    tick(freq, 0.06, 0.16);
+  }
+
+  // distinct, brighter marker at the zero mark
+  function playNow(){
+    tick(1318.5, 0.18, 0.22);
+  }
+
+  // ---- main loop ----
+  let lastSec = -1;
+  let nowUntil = 0;
+  let lastShown = -1;
+
+  function setBars(scale){
+    const v = "scaleX(" + scale + ")";
+    for (const f of fills) f.style.transform = v;
+  }
+
+  function frame(){
+    const now = new Date();
+    const s = now.getSeconds();
+    const sFrac = s + now.getMilliseconds() / 1000;
+
+    drawAnalog(now, sFrac);
+    readout.textContent = pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(s);
+
+    // detect the zero crossing -> trigger Now
+    if (lastSec === 59 && s === 0){
+      nowUntil = performance.now() + 1050;
+      flash.classList.remove("show");
+      void flash.offsetWidth;
+      flash.classList.add("show");
+      countEl.classList.add("now");
+      countEl.textContent = "Now!";
+      targetEl.textContent = "";
+      overlay.classList.add("active");
+      lastShown = -1;
+      if (soundOn) playNow();
+    }
+    lastSec = s;
+
+    const nowActive = performance.now() < nowUntil;
+
+    if (nowActive){
+      setBars(1);
+    } else if (sFrac >= (60 - LEAD)){
+      const progress = (sFrac - (60 - LEAD)) / LEAD;   // 0 -> 1 across the final 15s
+      setBars(progress);
+
+      const remaining = Math.max(1, Math.ceil(60 - sFrac));  // 15 .. 1
+      countEl.classList.remove("now");
+
+      // target = the upcoming minute, seconds = 00
+      const tgt = new Date(now);
+      tgt.setSeconds(0, 0);
+      tgt.setMinutes(tgt.getMinutes() + 1);
+      targetEl.innerHTML = "set to <b>" + pad(tgt.getHours()) + ":" + pad(tgt.getMinutes()) + ":00</b>";
+      overlay.classList.add("active");
+
+      if (remaining !== lastShown){
+        countEl.textContent = remaining;
+        countEl.classList.remove("pulse");
+        void countEl.offsetWidth;
+        countEl.classList.add("pulse");
+        lastShown = remaining;
+        if (soundOn) playTick(remaining);
+      }
+    } else {
+      setBars(0);
+      overlay.classList.remove("active");
+      countEl.classList.remove("now");
+      lastShown = -1;
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
