@@ -21,7 +21,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Detect icon.svg changes
         id: icon-change
@@ -35,17 +35,12 @@ jobs:
 
           if [ "$EVENT_ACTION" = "synchronize" ] && [ -n "${BEFORE_SHA:-}" ]; then
             from_sha="$BEFORE_SHA"
+          elif [ "$EVENT_ACTION" = "synchronize" ] && git cat-file -e "$HEAD_SHA^" 2>/dev/null; then
+            from_sha="$(git rev-parse "$HEAD_SHA^")"
           else
             from_sha="$BASE_SHA"
           fi
           to_sha="$HEAD_SHA"
-
-          if ! git cat-file -e "$from_sha^{commit}" 2>/dev/null; then
-            git fetch --no-tags --depth=1 origin "$from_sha"
-          fi
-          if ! git cat-file -e "$to_sha^{commit}" 2>/dev/null; then
-            git fetch --no-tags --depth=1 origin "$to_sha"
-          fi
 
           if git diff --name-only "$from_sha" "$to_sha" | grep -qx "icon.svg"; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
