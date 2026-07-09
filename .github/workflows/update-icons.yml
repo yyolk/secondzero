@@ -18,6 +18,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install ImageMagick
         run: |
@@ -29,7 +30,7 @@ jobs:
 
       - name: Commit updated PNGs
         run: |
-          if git diff --quiet -- icon-*.png; then
+          if [ -z "$(git status --porcelain -- icon-*.png)" ]; then
             echo "No icon changes to commit"
             exit 0
           fi
