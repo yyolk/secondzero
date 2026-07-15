@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" fill="#000000"/>
+
+  <!-- Simple clock face -->
+  <circle cx="256" cy="256" r="195" fill="#111111" stroke="#2a2a2a" stroke-width="38"/>
+
+  <!-- Yellow center dot (matches \-\-accent) -->
+  <circle cx="256" cy="256" r="48" fill="#f5b301"/>
+
+  <!-- Red second hand pointing at 12 (very visible at small sizes) -->
+  <line x1="256" y1="256" x2="256" y2="98" stroke="#ff3333" stroke-width="22" stroke-linecap="round"/>
+
+  <!-- Subtle inner dot for definition -->
+  <circle cx="256" cy="256" r="12" fill="#111111"/>
+</svg>
