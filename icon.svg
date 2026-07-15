@@ -9,7 +9,7 @@
   <!-- Bottom progress bar -->
   <!-- <rect x="56" y="444" width="400" height="20" rx="4" fill="#1a1a1a"/> -->
   <!-- <rect x="56" y="444" width="196" height="20" rx="4" fill="#f5b301"/> -->
-  
+
   <!-- Clock face -->
   <circle cx="256" cy="256" r="178" fill="#0f0f0f" stroke="#2a2a2a" stroke-width="32"/>
 
