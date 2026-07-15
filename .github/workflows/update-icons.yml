@@ -40,7 +40,7 @@ jobs:
 
       - name: Regenerate icons and favicons
         if: steps.icon-change.outputs.any_changed == 'true'
-        run: make icons favicons
+        run: make clean icons favicons
 
       - name: Commit updated PNGs
         if: steps.icon-change.outputs.any_changed == 'true'
