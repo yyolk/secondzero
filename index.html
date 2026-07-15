@@ -234,8 +234,18 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
       const ang = i * Math.PI / 6;
       const major = i % 3 === 0;
       const len = major ? r * 0.11 : r * 0.05;
-      ctx.strokeStyle = major ? "#cfcfcf" : "#4a4a4a";
-      ctx.lineWidth = major ? Math.max(2, side * 0.008) : Math.max(1, side * 0.004);
+      const ACCENT = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+      // Highlight the 45-second mark (LEAD) in yellow — reuses LEAD variable
+      let tickColor = major ? "#cfcfcf" : "#4a4a4a";
+      let tickWidth = major ? Math.max(2, side * 0.008) : Math.max(1, side * 0.004);
+      if (i === ((60 - LEAD) / 5) % 12) {   // 45s → i=9 when LEAD=15
+        //tickColor = "var(--accent)";
+        tickColor = ACCENT;
+        tickWidth = Math.max(3.5, side * 0.013);
+      }
+
+      ctx.strokeStyle = tickColor;
+      ctx.lineWidth = tickWidth;
       ctx.lineCap = "round";
       const x0 = c + (r) * Math.sin(ang),       y0 = c - (r) * Math.cos(ang);
       const x1 = c + (r - len) * Math.sin(ang), y1 = c - (r - len) * Math.cos(ang);
@@ -251,11 +261,15 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
     hand(c, minAng,  r * 0.78, side * 0.013, "#ececec");
     hand(c, secAng,  r * 0.86, side * 0.006, "#ff3333");   // red second hand
 
-    // center dot
-    ctx.fillStyle = "#ececec";
+    // center dot - simple hollow ring (blank look until LEAD)
+    ctx.fillStyle = "#000000";
+    ctx.strokeStyle = "#ececec";
+    ctx.lineWidth = side * 0.009;
+
     ctx.beginPath();
-    ctx.arc(c, c, side * 0.012, 0, Math.PI * 2);
+    ctx.arc(c, c, side * 0.018, 0, Math.PI * 2);
     ctx.fill();
+    ctx.stroke();
   }
 
   function pad(n){ return n < 10 ? "0" + n : "" + n; }
