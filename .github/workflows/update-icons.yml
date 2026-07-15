@@ -23,12 +23,13 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - name: Detect icon.svg changes
+      - name: Detect icon.svg or favicon.svg changes
         id: icon-change
         uses: tj-actions/changed-files@v46
         with:
           files: |
             icon.svg
+            favicon.svg
           since_last_remote_commit: true
 
       - name: Install ImageMagick
@@ -37,9 +38,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y imagemagick
 
-      - name: Regenerate icons
+      - name: Regenerate icons and favicons
         if: steps.icon-change.outputs.any_changed == 'true'
-        run: make icons
+        run: make icons favicons
 
       - name: Commit updated PNGs
         if: steps.icon-change.outputs.any_changed == 'true'
@@ -61,7 +62,7 @@ jobs:
             exit 0
           fi
 
-          git commit -m "chore: regenerate icons from icon.svg"
+          git commit -m "chore: regenerate icons and favicons from icon.svg and favicon.svg"
 
           max_attempts=3
           for ((attempt=1; attempt<=max_attempts; attempt++)); do
